@@ -1,29 +1,61 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Media;
 using System.Threading;
+using System.Linq;
 
 class CybersecurityAwarenessBot
 {
-    // List of predefined chatbot responses based on keywords
-    private static ArrayList CybersecurityResponses;
+    private static Dictionary<string, List<string>> CybersecurityResponses;
+    private static Dictionary<string, string> UserMemory;
+    private static Random random = new Random();
 
-    // Initializes keyword-response pairs for chatbot to recognize and reply with
     private static void InitializeResponses()
     {
-        CybersecurityResponses = new ArrayList
+        // Using a dictionary with lists to support multiple responses for each keyword
+        CybersecurityResponses = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
         {
-            "password safety|Use strong, unique passwords. Avoid using personal information and consider a password manager.",
-            "phishing|Never click on suspicious links. Verify the sender's email and look for red flags like urgent language or unexpected attachments.",
-            "safe browsing|Use updated browsers, enable pop-up blockers, and be cautious when downloading files from unknown sources.",
-            "how are you|I'm functioning well and ready to help you stay safe online!",
-            "your purpose|I'm a Cybersecurity Awareness Bot designed to educate users about online safety and best practices."
+            { "password", new List<string> {
+                "Make sure to use strong, unique passwords for each account. Avoid using personal details in your passwords.",
+                "Password managers are a great tool to keep track of complex passwords securely.",
+                "Consider using passphrases instead of simple passwords for better security."
+            }},
+            { "phishing", new List<string> {
+                "Be cautious of emails asking for personal information. Scammers often disguise themselves as trusted organizations.",
+                "Always verify the sender's email address and look for red flags like urgent language or unexpected attachments.",
+                "Hover over links before clicking to see the actual URL destination."
+            }},
+            { "browsing", new List<string> {
+                "Use updated browsers, enable pop-up blockers, and be cautious when downloading files from unknown sources.",
+                "Consider using a VPN for additional security, especially when using public Wi-Fi networks.",
+                "Keep your operating system and applications up-to-date with security patches."
+            }},
+            { "privacy", new List<string> {
+                "Regularly review the privacy settings on your social media accounts and applications.",
+                "Be mindful of what information you share online, as it can be difficult to remove once published.",
+                "Consider using privacy-focused browsers and search engines."
+            }},
+            { "malware", new List<string> {
+                "Install reliable antivirus software and keep it updated.",
+                "Be careful when downloading software - only use trusted sources.",
+                "Scan email attachments before opening them, even if they're from people you know."
+            }},
+            { "how are you", new List<string> {
+                "I'm functioning well and ready to help you stay safe online!",
+                "I'm operational and eager to discuss cybersecurity best practices with you!"
+            }},
+            { "your purpose", new List<string> {
+                "I'm a Cybersecurity Awareness Bot designed to educate users about online safety and best practices.",
+                "My purpose is to help you learn about protecting yourself in the digital world."
+            }}
         };
+
+        UserMemory = new Dictionary<string, string>();
     }
 
-    // Displays chatbot responses with a typing animation and color
     private static void TypeWriterEffect(string message, int delay = 20, ConsoleColor color = ConsoleColor.White)
     {
         Console.ForegroundColor = color;
@@ -31,31 +63,28 @@ class CybersecurityAwarenessBot
         foreach (char c in message)
         {
             Console.Write(c);
-            Thread.Sleep(delay); // Delay to simulate typing effect
+            Thread.Sleep(delay);
         }
         Console.WriteLine();
         Console.ResetColor();
     }
 
-    // Plays an optional greeting sound when the bot starts
     private static void PlayGreetingAudio()
     {
         string filePath = "greeting.wav";
         try
         {
             SoundPlayer player = new SoundPlayer(filePath);
-            player.PlaySync(); // Play audio synchronously
+            player.PlaySync();
         }
         catch
         {
-            // Display error if audio is missing
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("Chatbot: Audio file not found. Skipping audio...");
             Console.ResetColor();
         }
     }
 
-    // Prompts the user for input and displays prompt in a colored, labeled format
     private static string GetUserInput(string prompt, string userName)
     {
         Console.ForegroundColor = ConsoleColor.Yellow;
@@ -70,37 +99,115 @@ class CybersecurityAwarenessBot
         return input;
     }
 
-    // Matches user input against known keywords and returns the chatbot's reply
-    private static string ProcessUserQuery(string query)
+    // Sentiment detection function
+    private static string DetectSentiment(string input)
     {
-        foreach (string response in CybersecurityResponses)
+        string inputLower = input.ToLower();
+
+        // Simple sentiment detection based on keywords
+        if (inputLower.Contains("worried") || inputLower.Contains("scared") ||
+            inputLower.Contains("anxious") || inputLower.Contains("concerned"))
         {
-            string[] parts = response.Split('|'); // Split keyword and response
-            if (query.IndexOf(parts[0], StringComparison.OrdinalIgnoreCase) >= 0)
+            return "worried";
+        }
+        else if (inputLower.Contains("confused") || inputLower.Contains("don't understand") ||
+                 inputLower.Contains("what is") || inputLower.Contains("how do") ||
+                 inputLower.Contains("help me"))
+        {
+            return "confused";
+        }
+        else if (inputLower.Contains("thanks") || inputLower.Contains("thank you") ||
+                 inputLower.Contains("helpful") || inputLower.Contains("great"))
+        {
+            return "pleased";
+        }
+        else if (inputLower.Contains("frustrated") || inputLower.Contains("angry") ||
+                 inputLower.Contains("not working") || inputLower.Contains("stupid"))
+        {
+            return "frustrated";
+        }
+
+        return "neutral";
+    }
+
+    // Process user query with dynamic responses, sentiment awareness, and memory
+    private static string ProcessUserQuery(string query, string userName)
+    {
+        string sentiment = DetectSentiment(query);
+        string queryLower = query.ToLower();
+
+        // Store topics the user shows interest in
+        foreach (var topic in CybersecurityResponses.Keys)
+        {
+            if (queryLower.Contains(topic.ToLower()) && topic != "how are you" && topic != "your purpose")
             {
-                return parts[1]; // Return the matching response
+                UserMemory["favorite_topic"] = topic;
+                break;
             }
         }
 
-        // Default reply for unknown inputs
-        return "I'm not sure about that. Could you rephrase or ask about password safety, phishing, or safe browsing?";
+        // Check for specific keyword matches
+        foreach (var kvp in CybersecurityResponses)
+        {
+            if (queryLower.Contains(kvp.Key.ToLower()))
+            {
+                // Randomly select a response from the list for variety
+                int randomIndex = random.Next(kvp.Value.Count);
+                string baseResponse = kvp.Value[randomIndex];
+
+                // Enhance response based on sentiment
+                switch (sentiment)
+                {
+                    case "worried":
+                        return $"I understand your concern about {kvp.Key}. {baseResponse} Remember, staying informed is the first step to staying safe.";
+                    case "confused":
+                        return $"Let me clarify about {kvp.Key}. {baseResponse} Does that help explain it better?";
+                    case "pleased":
+                        return $"I'm glad I could help! About {kvp.Key}: {baseResponse} Is there anything else you'd like to know?";
+                    case "frustrated":
+                        return $"I'm sorry you're having trouble with {kvp.Key}. {baseResponse} Let's take it step by step.";
+                    default:
+                        // Reference previous interests if available
+                        if (UserMemory.ContainsKey("favorite_topic") && !kvp.Key.Equals(UserMemory["favorite_topic"], StringComparison.OrdinalIgnoreCase))
+                        {
+                            return $"{baseResponse} Since you were interested in {UserMemory["favorite_topic"]} earlier, it's also good to know that these topics connect in cybersecurity.";
+                        }
+                        return baseResponse;
+                }
+            }
+        }
+
+        // If we're here, no direct keyword match was found
+        // Check if the user is asking about something they previously mentioned
+        if (queryLower.Contains("what did i ask") || queryLower.Contains("what was i interested"))
+        {
+            if (UserMemory.ContainsKey("favorite_topic"))
+            {
+                return $"You previously showed interest in {UserMemory["favorite_topic"]}. Would you like to know more about it?";
+            }
+        }
+
+        // Default response with memory usage if available
+        if (UserMemory.ContainsKey("favorite_topic"))
+        {
+            return $"I'm not sure about that specific query. Would you like to continue discussing {UserMemory["favorite_topic"]} or learn about other cybersecurity topics like password safety, phishing, or safe browsing?";
+        }
+
+        // Fallback response
+        return "I'm not sure about that. Could you rephrase or ask about password safety, phishing, privacy, malware, or safe browsing?";
     }
 
-    // Core logic for running the chatbot
     static void RunChatbot()
     {
-        Console.Clear(); // Clear the console for a clean start
-        new Logo(); // Display ASCII logo
+        Console.Clear();
+        new Logo();
+        InitializeResponses();
+        PlayGreetingAudio();
 
-        InitializeResponses(); // Load chatbot knowledge
-        PlayGreetingAudio(); // Optional sound on start
-
-        // Welcome banner
         Console.WriteLine("==================================================");
-        TypeWriterEffect("Welcome to the Cybersecurity Awareness Bot!", 30, ConsoleColor.Green);
+        TypeWriterEffect("Welcome to the Enhanced Cybersecurity Awareness Bot!", 30, ConsoleColor.Green);
         Console.WriteLine("==================================================");
 
-        // Ask for user's name
         string namePrompt = "What is your name?";
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine($"Chatbot: {namePrompt}");
@@ -108,48 +215,48 @@ class CybersecurityAwarenessBot
 
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.Write("User: ");
-        string userName = Console.ReadLine()?.Trim(); // Read user name
+        string userName = Console.ReadLine()?.Trim();
         Console.ResetColor();
 
-        // Greet the user
-        TypeWriterEffect($"Nice to meet you, {userName}!", 25, ConsoleColor.Green);
+        // Store the user's name in memory
+        UserMemory["name"] = userName;
 
-        // Main conversation loop
+        TypeWriterEffect($"Nice to meet you, {userName}! I'll remember your name throughout our conversation.", 25, ConsoleColor.Green);
+        TypeWriterEffect("I can help you with topics like password safety, phishing protection, safe browsing, privacy, and malware defense.", 25, ConsoleColor.Green);
+
         while (true)
         {
-            // Prompt user for a cybersecurity question
-            string query = GetUserInput("What would you like to know about cybersecurity? (password safety, phishing, or safe browsing) (Type 'exit' to quit)", userName);
+            string query = GetUserInput("What would you like to know about cybersecurity? (Type 'exit' to quit)", userName);
 
-            // Handle empty or invalid input
             if (string.IsNullOrWhiteSpace(query))
             {
                 TypeWriterEffect("Please enter a valid question.", 25, ConsoleColor.Red);
                 continue;
             }
 
-            // Check for exit condition
             if (query.Equals("exit", StringComparison.OrdinalIgnoreCase))
             {
-                TypeWriterEffect($"Goodbye, {userName}! Stay safe online!", 25, ConsoleColor.Magenta);
+                string farewell = UserMemory.ContainsKey("favorite_topic")
+                    ? $"Goodbye, {userName}! Remember to stay vigilant, especially regarding {UserMemory["favorite_topic"]}. Stay safe online!"
+                    : $"Goodbye, {userName}! Stay safe online!";
+
+                TypeWriterEffect(farewell, 25, ConsoleColor.Magenta);
                 break;
             }
 
-            // Respond to valid user input
-            string botResponse = ProcessUserQuery(query);
+            string botResponse = ProcessUserQuery(query, userName);
             TypeWriterEffect(botResponse, 25, ConsoleColor.Green);
         }
     }
 
-    // Entry point for the program
     static void Main(string[] args)
     {
         try
         {
-            RunChatbot(); // Start chatbot logic
+            RunChatbot();
         }
         catch (Exception ex)
         {
-            // Display any unexpected errors
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"Chatbot: An unexpected error occurred: {ex.Message}");
             Console.ResetColor();
@@ -157,13 +264,12 @@ class CybersecurityAwarenessBot
     }
 }
 
-// This class handles reading an image and converting it into ASCII art
 public class Logo
 {
     public Logo()
     {
         string path_project = AppDomain.CurrentDomain.BaseDirectory;
-        string new_path_project = path_project.Replace("bin\\Debug\\", ""); // Adjust path if needed
+        string new_path_project = path_project.Replace("bin\\Debug\\", "");
         string full_path = Path.Combine(new_path_project, "cybersecuritylogo5.jpeg");
 
         if (!File.Exists(full_path))
@@ -172,24 +278,18 @@ public class Logo
             return;
         }
 
-        Bitmap image = new Bitmap(full_path); // Load the image
-        image = new Bitmap(image, new Size(100, 100)); // Resize image
+        Bitmap image = new Bitmap(full_path);
+        image = new Bitmap(image, new Size(100, 100));
         Console.ForegroundColor = ConsoleColor.Blue;
 
-        // Loop through pixels to generate ASCII design
         for (int height = 0; height < image.Height; height++)
         {
             for (int width = 0; width < image.Width; width++)
             {
                 Color pixelColor = image.GetPixel(width, height);
-                int brightness = (pixelColor.R + pixelColor.G + pixelColor.B) / 3;
+                int color = (pixelColor.R + pixelColor.G + pixelColor.B) / 3;
 
-                // Map brightness to ASCII characters
-                char ascii_design = brightness > 200 ? '.' :
-                                    brightness > 150 ? '*' :
-                                    brightness > 100 ? 'O' :
-                                    brightness > 50 ? '#' : '@';
-
+                char ascii_design = color > 200 ? '.' : color > 150 ? '*' : color > 100 ? 'O' : color > 50 ? '#' : '@';
                 Console.Write(ascii_design);
             }
             Console.WriteLine();
@@ -198,4 +298,3 @@ public class Logo
         Console.ResetColor();
     }
 }
-
