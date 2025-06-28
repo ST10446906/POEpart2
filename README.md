@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Media;
+using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
+using System.Media;
 
 namespace CybersecurityAwarenessGUI
 {
@@ -9,18 +11,12 @@ namespace CybersecurityAwarenessGUI
     {
         private List<CyberTask> tasks = new List<CyberTask>();
         private int taskIdCounter = 1;
-        private object lstTasks;
 
         public MainForm()
         {
             InitializeComponent();
             InitializeQuiz();
             Greet();
-        }
-
-        private void InitializeComponent()
-        {
-            throw new NotImplementedException();
         }
 
         public void Greet()
@@ -60,7 +56,7 @@ namespace CybersecurityAwarenessGUI
             lstTasks.Items.Clear();
             foreach (var task in tasks)
             {
-                object Items = lstTasks.Items.Add($"{task.Id}. {(task.IsCompleted ? "[X]" : "[ ]")} {task.Title}");
+                lstTasks.Items.Add($"{task.Id}. {(task.IsCompleted ? "[X]" : "[ ]")} {task.Title}");
             }
         }
 
@@ -74,28 +70,14 @@ namespace CybersecurityAwarenessGUI
 
         private void btnDeleteTask_Click(object sender, EventArgs e)
         {
-            if (lstTasks.SelectedIndex != -1)
-            {
-                tasks.RemoveAt(lstTasks.SelectedIndex);
-                UpdateTaskList();
-            }
+            if (lstTasks.SelectedIndex == -1) return;
+            tasks.RemoveAt(lstTasks.SelectedIndex);
+            UpdateTaskList();
         }
 
         private void InitializeQuiz()
         {
             // Optional: setup quiz logic if needed
-        }
-
-        private class QuizForm
-        {
-            public QuizForm()
-            {
-            }
-
-            internal void ShowDialog()
-            {
-                throw new NotImplementedException();
-            }
         }
     }
 
